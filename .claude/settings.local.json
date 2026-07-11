@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Bash(rm -rf \"/Users/kronosdev/Desktop/Freelance Projects/Streaming App/.next\")",
+      "Bash(npx -y create-next-app@latest . --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --use-npm --skip-install)",
+      "Bash(npx -y create-next-app@latest streaming-app --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --use-npm --skip-install)",
+      "Bash(npm install *)",
+      "Bash(cp .env.example .env.local)",
+      "Bash(npm run *)",
+      "Bash(git mv *)",
+      "Bash(mv src/middleware.ts src/proxy.ts)",
+      "Bash(npx eslint *)"
+    ],
+    "additionalDirectories": [
+      "/Users/kronosdev/Desktop/Freelance Projects/Streaming App/streaming-app"
+    ]
+  }
+}
