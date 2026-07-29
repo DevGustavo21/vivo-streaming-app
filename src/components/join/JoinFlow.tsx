@@ -10,6 +10,13 @@ import {
   type Session,
 } from "@/lib/types";
 import type { User } from "@supabase/supabase-js";
+import { SwitchCamera } from "lucide-react";
+import {
+  canFlipCamera,
+  DEFAULT_VIDEO_CAPTURE,
+  isMobileOrTablet,
+  type CameraFacing,
+} from "@/lib/camera";
 
 type Step = "loading" | "auth" | "lobby" | "waiting" | "rejected" | "full";
 
@@ -38,6 +45,19 @@ export default function JoinFlow({ session }: { session: Session }) {
   const [camOn, setCamOn] = useState(false);
   const [mediaAsked, setMediaAsked] = useState(false);
   const [mediaDenied, setMediaDenied] = useState(false);
+  const [facingMode, setFacingMode] = useState<CameraFacing>("user");
+  const [canFlip, setCanFlip] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const ok = (await canFlipCamera()) && isMobileOrTablet();
+      if (!cancelled) setCanFlip(ok);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -130,16 +150,42 @@ export default function JoinFlow({ session }: { session: Session }) {
     setMediaAsked(true);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
+        video: { facingMode: { ideal: DEFAULT_VIDEO_CAPTURE.facingMode ?? "user" } },
         audio: true,
       });
       streamRef.current = stream;
       if (videoRef.current) videoRef.current.srcObject = stream;
+      setFacingMode("user");
       setCamOn(true);
       setMediaDenied(false);
     } catch {
       setMediaDenied(true);
       setCamOn(false);
+    }
+  }
+
+  async function flipLobbyCamera() {
+    const stream = streamRef.current;
+    if (!stream || !camOn) return;
+    const next: CameraFacing = facingMode === "environment" ? "user" : "environment";
+    const audioTracks = stream.getAudioTracks();
+    try {
+      const videoStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: next } },
+      });
+      stream.getVideoTracks().forEach((t) => {
+        stream.removeTrack(t);
+        t.stop();
+      });
+      const newVideo = videoStream.getVideoTracks()[0];
+      if (newVideo) stream.addTrack(newVideo);
+      audioTracks.forEach((t) => {
+        if (!stream.getAudioTracks().includes(t)) stream.addTrack(t);
+      });
+      if (videoRef.current) videoRef.current.srcObject = stream;
+      setFacingMode(next);
+    } catch {
+      setError("No se pudo cambiar a la otra cámara.");
     }
   }
 
@@ -297,7 +343,7 @@ export default function JoinFlow({ session }: { session: Session }) {
                 autoPlay
                 muted
                 playsInline
-                className={`h-full w-full object-cover ${camOn ? "" : "hidden"} -scale-x-100`}
+                className={`h-full w-full object-cover ${camOn ? "" : "hidden"} ${facingMode === "user" ? "-scale-x-100" : ""}`}
               />
               {!camOn && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
@@ -323,12 +369,24 @@ export default function JoinFlow({ session }: { session: Session }) {
                 </button>
               ) : (
                 !mediaDenied && (
-                  <button
-                    onClick={toggleCam}
-                    className="rounded-xl border border-zinc-700 px-5 py-2.5 text-sm font-medium hover:bg-zinc-800 transition-colors"
-                  >
-                    {camOn ? "Apagar cámara" : "Encender cámara"}
-                  </button>
+                  <>
+                    <button
+                      onClick={toggleCam}
+                      className="rounded-xl border border-zinc-700 px-5 py-2.5 text-sm font-medium hover:bg-zinc-800 transition-colors"
+                    >
+                      {camOn ? "Apagar cámara" : "Encender cámara"}
+                    </button>
+                    {canFlip && camOn && (
+                      <button
+                        type="button"
+                        onClick={flipLobbyCamera}
+                        className="flex items-center gap-2 rounded-xl border border-zinc-700 px-5 py-2.5 text-sm font-medium hover:bg-zinc-800 transition-colors"
+                      >
+                        <SwitchCamera className="h-4 w-4" />
+                        Cambiar cámara
+                      </button>
+                    )}
+                  </>
                 )
               )}
             </div>

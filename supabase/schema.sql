@@ -57,7 +57,8 @@ create table public.sessions (
                      check (status in ('scheduled', 'live', 'ended')),
   started_at       timestamptz,
   ended_at         timestamptz,
-  created_at       timestamptz not null default now()
+  created_at       timestamptz not null default now(),
+  spotlight_identity text
 );
 
 create index sessions_host_idx on public.sessions (host_id);

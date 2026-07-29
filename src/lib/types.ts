@@ -35,6 +35,8 @@ export interface Session {
   started_at: string | null;
   ended_at: string | null;
   created_at: string;
+  /** LiveKit identity (profile id) del participante en vista ampliada; null = grid normal */
+  spotlight_identity?: string | null;
 }
 
 export interface Participant {

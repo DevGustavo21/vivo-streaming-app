@@ -7,6 +7,7 @@ import { TrackSource } from "@livekit/protocol";
 import { RoomEvent } from "livekit-client";
 import type { LucideIcon } from "lucide-react";
 import {
+  Crop,
   Hand,
   Heart,
   Laugh,
@@ -20,11 +21,14 @@ import {
   Settings,
   SmilePlus,
   Sparkles,
+  SwitchCamera,
   ThumbsUp,
   Users,
   Video,
   VideoOff,
 } from "lucide-react";
+import { canFlipCamera, flipLocalCamera, isMobileOrTablet } from "@/lib/camera";
+import type { VideoFitMode } from "@/lib/video-display";
 import { REACTION_EMOJIS, type LkMetadata, type ReactionKey } from "@/lib/types";
 import type { SidebarView } from "./RoomContent";
 
@@ -56,6 +60,8 @@ export default function ControlsBar({
   onReaction,
   onNotify,
   onFinalizeForAll,
+  videoFit,
+  onToggleVideoFit,
 }: {
   isHost: boolean;
   sidebar: SidebarView;
@@ -66,6 +72,8 @@ export default function ControlsBar({
   onReaction: (emoji: ReactionKey) => void;
   onNotify: (msg: string) => void;
   onFinalizeForAll?: () => void;
+  videoFit: VideoFitMode;
+  onToggleVideoFit: () => void;
 }) {
   const router = useRouter();
   const room = useRoomContext();
@@ -81,6 +89,18 @@ export default function ControlsBar({
   const [showReactions, setShowReactions] = useState(false);
   const [micAllowed, setMicAllowed] = useState(isHostUser);
   const [busy, setBusy] = useState<string | null>(null);
+  const [showFlipCam, setShowFlipCam] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const ok = (await canFlipCamera()) && isMobileOrTablet();
+      if (!cancelled) setShowFlipCam(ok);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function computeMicAllowed(): boolean {
     if (isHostUser) return true;
@@ -125,6 +145,21 @@ export default function ControlsBar({
       await localParticipant.setCameraEnabled(!isCameraEnabled);
     } catch {
       onNotify("No se pudo acceder a tu cámara. Revisa los permisos del navegador.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function switchCamera() {
+    if (!isCameraEnabled) {
+      onNotify("Enciende la cámara para cambiar de lente.");
+      return;
+    }
+    try {
+      setBusy("flip");
+      await flipLocalCamera(localParticipant);
+    } catch {
+      onNotify("No se pudo cambiar de cámara en este dispositivo.");
     } finally {
       setBusy(null);
     }
@@ -204,6 +239,30 @@ export default function ControlsBar({
           <VideoOff className="h-5 w-5" />
         )}
       </ControlButton>
+
+      <ControlButton
+        onClick={onToggleVideoFit}
+        active={videoFit === "cover"}
+        label={
+          videoFit === "cover"
+            ? "Reencuadre automático activado (ajusta al recuadro)"
+            : "Reencuadre desactivado (video completo)"
+        }
+      >
+        <Crop className="h-5 w-5" />
+      </ControlButton>
+
+      {showFlipCam && (
+        <ControlButton
+          onClick={switchCamera}
+          active={false}
+          disabled={busy === "flip" || !isCameraEnabled}
+          label="Cambiar cámara (frontal / trasera)"
+          className="md:hidden"
+        >
+          <SwitchCamera className="h-5 w-5" />
+        </ControlButton>
+      )}
 
       <ControlButton
         onClick={toggleScreenShare}

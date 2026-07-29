@@ -9,7 +9,8 @@ type Action =
   | "disable_mic"
   | "kick"
   | "end_session"
-  | "update_settings";
+  | "update_settings"
+  | "set_spotlight";
 
 async function applyMicToAllApproved(
   admin: ReturnType<typeof createAdminClient>,
@@ -119,6 +120,36 @@ export async function POST(req: Request) {
 
     if (typeof muteOnEntry === "boolean") {
       await applyMicToAllApproved(admin, sessionId, !muteOnEntry);
+    }
+
+    return NextResponse.json({ ok: true, session: updated });
+  }
+
+  if (action === "set_spotlight") {
+    const raw = body?.spotlightIdentity;
+    const spotlightIdentity =
+      raw === null || raw === undefined || raw === ""
+        ? null
+        : typeof raw === "string"
+          ? raw
+          : undefined;
+
+    if (spotlightIdentity === undefined) {
+      return NextResponse.json({ error: "spotlightIdentity inválido" }, { status: 400 });
+    }
+
+    const { data: updated, error } = await admin
+      .from("sessions")
+      .update({ spotlight_identity: spotlightIdentity })
+      .eq("id", sessionId)
+      .select()
+      .single();
+
+    if (error || !updated) {
+      return NextResponse.json(
+        { error: error?.message ?? "Error al actualizar vista ampliada" },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({ ok: true, session: updated });

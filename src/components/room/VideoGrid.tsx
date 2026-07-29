@@ -8,6 +8,7 @@ import {
 } from "@livekit/components-react";
 import { Track } from "livekit-client";
 import ParticipantTile from "./ParticipantTile";
+import type { VideoFitMode } from "@/lib/video-display";
 
 const PAGE_SIZE = 12;
 
@@ -15,11 +16,17 @@ const PAGE_SIZE = 12;
  * Grid responsive de participantes.
  * - Con pantalla compartida: layout "spotlight" (pantalla grande +
  *   tira de cámaras).
+ * - Con vista ampliada del anfitrión: participante seleccionado en grande.
  * - Sin ella: grid que se reacomoda según cantidad y viewport, con
- *   paginación a partir de 12 tiles (renderizar más video simultáneo
- *   degrada móviles; adaptiveStream pausa lo que no se ve).
+ *   paginación a partir de 12 tiles.
  */
-export default function VideoGrid() {
+export default function VideoGrid({
+  spotlightIdentity = null,
+  videoFit = "cover",
+}: {
+  spotlightIdentity?: string | null;
+  videoFit?: VideoFitMode;
+}) {
   const tracks = useTracks(
     [
       { source: Track.Source.Camera, withPlaceholder: true },
@@ -45,15 +52,41 @@ export default function VideoGrid() {
     return (
       <div className="flex h-full flex-col gap-2">
         <div className="min-h-0 flex-1 overflow-hidden rounded-xl bg-black">
-          <ParticipantTile trackRef={screenShare} isScreenShare />
+          <ParticipantTile trackRef={screenShare} isScreenShare videoFit={videoFit} />
         </div>
         <div className="flex h-24 gap-2 overflow-x-auto md:h-28">
           {cameras.map((t) => (
             <div key={keyOf(t)} className="aspect-video h-full shrink-0">
-              <ParticipantTile trackRef={t} compact />
+              <ParticipantTile trackRef={t} compact videoFit={videoFit} />
             </div>
           ))}
         </div>
+      </div>
+    );
+  }
+
+  const spotlightTrack = spotlightIdentity
+    ? cameras.find(
+        (t) => t.participant.identity === spotlightIdentity && isTrackReference(t)
+      )
+    : undefined;
+
+  if (spotlightIdentity && spotlightTrack) {
+    const others = cameras.filter((t) => t.participant.identity !== spotlightIdentity);
+    return (
+      <div className="flex h-full flex-col gap-2">
+        <div className="min-h-0 flex-1 overflow-hidden rounded-xl bg-black">
+          <ParticipantTile trackRef={spotlightTrack} videoFit={videoFit} />
+        </div>
+        {others.length > 0 && (
+          <div className="flex h-24 gap-2 overflow-x-auto md:h-28">
+            {others.map((t) => (
+              <div key={keyOf(t)} className="aspect-video h-full shrink-0">
+                <ParticipantTile trackRef={t} compact videoFit={videoFit} />
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     );
   }
@@ -65,7 +98,7 @@ export default function VideoGrid() {
         style={{ gridAutoRows: "minmax(0, 1fr)" }}
       >
         {visible.map((t) => (
-          <ParticipantTile key={keyOf(t)} trackRef={t} />
+          <ParticipantTile key={keyOf(t)} trackRef={t} videoFit={videoFit} />
         ))}
       </div>
 

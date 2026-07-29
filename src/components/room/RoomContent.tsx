@@ -6,6 +6,11 @@ import { RoomEvent } from "livekit-client";
 import { createClient } from "@/lib/supabase/client";
 import InviteCodeShare from "@/components/InviteCodeShare";
 import type { ReactionEvent, ReactionKey, Session } from "@/lib/types";
+import {
+  getVideoFitPreference,
+  setVideoFitPreference,
+  type VideoFitMode,
+} from "@/lib/video-display";
 import VideoGrid from "./VideoGrid";
 import ControlsBar from "./ControlsBar";
 import ChatSidebar from "./ChatSidebar";
@@ -34,6 +39,19 @@ export default function RoomContent({
   const [unreadChat, setUnreadChat] = useState(0);
   const [showInviteBanner, setShowInviteBanner] = useState(false);
   const [inviteDismissed, setInviteDismissed] = useState(false);
+  const [videoFit, setVideoFit] = useState<VideoFitMode>("cover");
+
+  useEffect(() => {
+    setVideoFit(getVideoFitPreference());
+  }, []);
+
+  const toggleVideoFit = useCallback(() => {
+    setVideoFit((prev) => {
+      const next: VideoFitMode = prev === "cover" ? "contain" : "cover";
+      setVideoFitPreference(next);
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     if (!isHost) return;
@@ -181,7 +199,10 @@ export default function RoomContent({
         </div>
 
         <div className="relative min-h-0 flex-1 px-2 pb-2 md:px-4">
-          <VideoGrid />
+          <VideoGrid
+            spotlightIdentity={liveSession.spotlight_identity ?? null}
+            videoFit={videoFit}
+          />
           <ReactionsOverlay reactions={reactions} />
         </div>
 
@@ -195,6 +216,8 @@ export default function RoomContent({
           onReaction={sendReaction}
           onNotify={showToast}
           onFinalizeForAll={onFinalizeForAll}
+          videoFit={videoFit}
+          onToggleVideoFit={toggleVideoFit}
         />
       </div>
 
@@ -216,7 +239,13 @@ export default function RoomContent({
               }
             />
           ) : isHost ? (
-            <HostPanel session={liveSession} onClose={() => setSidebar(null)} />
+            <HostPanel
+              session={liveSession}
+              onClose={() => setSidebar(null)}
+              onSessionUpdated={(patch) =>
+                setLiveSession((cur) => ({ ...cur, ...patch }))
+              }
+            />
           ) : null}
         </aside>
       )}

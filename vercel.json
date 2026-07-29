@@ -1,0 +1,5 @@
+{
+  "env": {
+    "NODE_OPTIONS": "--max-http-header-size=65536"
+  }
+}

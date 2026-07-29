@@ -64,6 +64,7 @@ export default function RoomShell({
         dynacast: true,
         videoCaptureDefaults: {
           resolution: VideoPresets.h720.resolution,
+          facingMode: "user",
         },
         publishDefaults: {
           simulcast: true,
