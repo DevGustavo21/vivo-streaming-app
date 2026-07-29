@@ -343,7 +343,7 @@ export default function JoinFlow({ session }: { session: Session }) {
                 autoPlay
                 muted
                 playsInline
-                className={`h-full w-full object-cover ${camOn ? "" : "hidden"} ${facingMode === "user" ? "-scale-x-100" : ""}`}
+                className={`h-full w-full object-cover ${camOn ? "" : "hidden"}`}
               />
               {!camOn && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">

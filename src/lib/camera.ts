@@ -26,14 +26,6 @@ function isLocalVideoTrack(track: unknown): track is LocalVideoTrack {
   return isLocalTrack(track as LocalVideoTrack) && isVideoTrack(track as LocalVideoTrack);
 }
 
-export function shouldMirrorLocalVideo(track: LocalVideoTrack | undefined): boolean {
-  if (!track) return true;
-  const { facingMode } = facingModeFromLocalTrack(track, {
-    defaultFacingMode: "user",
-  });
-  return facingMode === "user";
-}
-
 export async function flipLocalCamera(
   localParticipant: LocalParticipant
 ): Promise<CameraFacing> {

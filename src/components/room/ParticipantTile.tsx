@@ -1,15 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import {
   isTrackReference,
   useIsSpeaking,
   VideoTrack,
   type TrackReferenceOrPlaceholder,
 } from "@livekit/components-react";
-import { isLocalTrack, isVideoTrack, TrackEvent } from "livekit-client";
 import { Mic, MicOff } from "lucide-react";
-import { shouldMirrorLocalVideo } from "@/lib/camera";
 import { initialsOf, type LkMetadata } from "@/lib/types";
 
 export default function ParticipantTile({
@@ -36,25 +33,6 @@ export default function ParticipantTile({
     !trackRef.publication.isMuted &&
     trackRef.publication.track != null;
 
-  const [mirrorLocal, setMirrorLocal] = useState(true);
-  useEffect(() => {
-    if (!isLocal || isScreenShare || !isTrackReference(trackRef)) {
-      setMirrorLocal(false);
-      return;
-    }
-    const track = trackRef.publication.track;
-    if (!track || !isLocalTrack(track) || !isVideoTrack(track)) {
-      setMirrorLocal(true);
-      return;
-    }
-    const sync = () => setMirrorLocal(shouldMirrorLocalVideo(track));
-    sync();
-    track.on(TrackEvent.Restarted, sync);
-    return () => {
-      track.off(TrackEvent.Restarted, sync);
-    };
-  }, [trackRef, isLocal, isScreenShare]);
-
   const objectClass =
     isScreenShare || videoFit === "contain" ? "object-contain" : "object-cover";
 
@@ -67,9 +45,7 @@ export default function ParticipantTile({
       {hasVideo ? (
         <VideoTrack
           trackRef={trackRef}
-          className={`h-full w-full ${objectClass} ${
-            isLocal && !isScreenShare && mirrorLocal ? "-scale-x-100" : ""
-          }`}
+          className={`h-full w-full ${objectClass}`}
         />
       ) : (
         <div className="flex h-full w-full items-center justify-center">
