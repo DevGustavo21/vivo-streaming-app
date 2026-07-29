@@ -7,8 +7,11 @@ import { createClient } from "@/lib/supabase/client";
 import InviteCodeShare from "@/components/InviteCodeShare";
 import type { ReactionEvent, ReactionKey, Session } from "@/lib/types";
 import {
+  getLocalMirrorPreference,
   getVideoFitPreference,
+  setLocalMirrorPreference,
   setVideoFitPreference,
+  type LocalMirrorMode,
   type VideoFitMode,
 } from "@/lib/video-display";
 import VideoGrid from "./VideoGrid";
@@ -40,15 +43,25 @@ export default function RoomContent({
   const [showInviteBanner, setShowInviteBanner] = useState(false);
   const [inviteDismissed, setInviteDismissed] = useState(false);
   const [videoFit, setVideoFit] = useState<VideoFitMode>("cover");
+  const [localMirrorMode, setLocalMirrorMode] = useState<LocalMirrorMode>("natural");
 
   useEffect(() => {
     setVideoFit(getVideoFitPreference());
+    setLocalMirrorMode(getLocalMirrorPreference());
   }, []);
 
   const toggleVideoFit = useCallback(() => {
     setVideoFit((prev) => {
       const next: VideoFitMode = prev === "cover" ? "contain" : "cover";
       setVideoFitPreference(next);
+      return next;
+    });
+  }, []);
+
+  const toggleLocalMirror = useCallback(() => {
+    setLocalMirrorMode((prev) => {
+      const next: LocalMirrorMode = prev === "natural" ? "selfie" : "natural";
+      setLocalMirrorPreference(next);
       return next;
     });
   }, []);
@@ -202,6 +215,7 @@ export default function RoomContent({
           <VideoGrid
             spotlightIdentity={liveSession.spotlight_identity ?? null}
             videoFit={videoFit}
+            localMirrorMode={localMirrorMode}
           />
           <ReactionsOverlay reactions={reactions} />
         </div>
@@ -218,6 +232,8 @@ export default function RoomContent({
           onFinalizeForAll={onFinalizeForAll}
           videoFit={videoFit}
           onToggleVideoFit={toggleVideoFit}
+          localMirrorMode={localMirrorMode}
+          onToggleLocalMirror={toggleLocalMirror}
         />
       </div>
 

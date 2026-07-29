@@ -7,6 +7,7 @@ import {
   Track,
   type VideoCaptureOptions,
 } from "livekit-client";
+import type { LocalMirrorMode } from "@/lib/video-display";
 
 export type CameraFacing = NonNullable<VideoCaptureOptions["facingMode"]>;
 
@@ -19,7 +20,9 @@ export function isMobileOrTablet(): boolean {
   if (typeof window === "undefined") return false;
   const touch = window.matchMedia("(pointer: coarse)").matches;
   const compact = window.matchMedia("(max-width: 1024px)").matches;
-  return touch && compact;
+  if (touch && compact) return true;
+  if (compact && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) return true;
+  return false;
 }
 
 function isLocalVideoTrack(track: unknown): track is LocalVideoTrack {
@@ -55,4 +58,13 @@ export async function canFlipCamera(): Promise<boolean> {
     // Sin permiso aún: en móvil/tablet igualmente ofrecemos el botón.
   }
   return isMobileOrTablet();
+}
+
+/** En móvil la cámara frontal suele verse en espejo; invertimos solo la vista local. */
+export function localPreviewNeedsUnmirror(
+  facingMode: CameraFacing,
+  mirrorMode: LocalMirrorMode
+): boolean {
+  if (mirrorMode === "selfie") return false;
+  return isMobileOrTablet() && facingMode === "user";
 }

@@ -15,8 +15,10 @@ import {
   canFlipCamera,
   DEFAULT_VIDEO_CAPTURE,
   isMobileOrTablet,
+  localPreviewNeedsUnmirror,
   type CameraFacing,
 } from "@/lib/camera";
+import { getLocalMirrorPreference } from "@/lib/video-display";
 
 type Step = "loading" | "auth" | "lobby" | "waiting" | "rejected" | "full";
 
@@ -47,6 +49,11 @@ export default function JoinFlow({ session }: { session: Session }) {
   const [mediaDenied, setMediaDenied] = useState(false);
   const [facingMode, setFacingMode] = useState<CameraFacing>("user");
   const [canFlip, setCanFlip] = useState(false);
+  const [localMirrorMode, setLocalMirrorMode] = useState(
+    () => getLocalMirrorPreference()
+  );
+
+  const lobbyUnMirror = localPreviewNeedsUnmirror(facingMode, localMirrorMode);
 
   useEffect(() => {
     let cancelled = false;
@@ -343,7 +350,7 @@ export default function JoinFlow({ session }: { session: Session }) {
                 autoPlay
                 muted
                 playsInline
-                className={`h-full w-full object-cover ${camOn ? "" : "hidden"}`}
+                className={`h-full w-full object-cover ${camOn ? "" : "hidden"} ${lobbyUnMirror ? "-scale-x-100" : ""}`}
               />
               {!camOn && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">

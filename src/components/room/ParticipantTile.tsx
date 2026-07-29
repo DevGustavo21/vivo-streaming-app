@@ -1,12 +1,24 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   isTrackReference,
   useIsSpeaking,
   VideoTrack,
   type TrackReferenceOrPlaceholder,
 } from "@livekit/components-react";
+import {
+  facingModeFromLocalTrack,
+  isLocalTrack,
+  isVideoTrack,
+  TrackEvent,
+} from "livekit-client";
 import { Mic, MicOff } from "lucide-react";
+import {
+  localPreviewNeedsUnmirror,
+  type CameraFacing,
+} from "@/lib/camera";
+import type { LocalMirrorMode } from "@/lib/video-display";
 import { initialsOf, type LkMetadata } from "@/lib/types";
 
 export default function ParticipantTile({
@@ -14,11 +26,13 @@ export default function ParticipantTile({
   isScreenShare = false,
   compact = false,
   videoFit = "cover",
+  localMirrorMode = "natural",
 }: {
   trackRef: TrackReferenceOrPlaceholder;
   isScreenShare?: boolean;
   compact?: boolean;
   videoFit?: "cover" | "contain";
+  localMirrorMode?: LocalMirrorMode;
 }) {
   const participant = trackRef.participant;
   const isSpeaking = useIsSpeaking(participant);
@@ -33,8 +47,34 @@ export default function ParticipantTile({
     !trackRef.publication.isMuted &&
     trackRef.publication.track != null;
 
+  const [facingMode, setFacingMode] = useState<CameraFacing>("user");
+
+  useEffect(() => {
+    if (!isLocal || isScreenShare || !isTrackReference(trackRef)) return;
+    const track = trackRef.publication.track;
+    if (!track || !isLocalTrack(track) || !isVideoTrack(track)) {
+      setFacingMode("user");
+      return;
+    }
+    const sync = () => {
+      setFacingMode(
+        facingModeFromLocalTrack(track, { defaultFacingMode: "user" }).facingMode
+      );
+    };
+    sync();
+    track.on(TrackEvent.Restarted, sync);
+    return () => {
+      track.off(TrackEvent.Restarted, sync);
+    };
+  }, [trackRef, isLocal, isScreenShare]);
+
   const objectClass =
     isScreenShare || videoFit === "contain" ? "object-contain" : "object-cover";
+
+  const unMirrorLocal =
+    isLocal &&
+    !isScreenShare &&
+    localPreviewNeedsUnmirror(facingMode, localMirrorMode);
 
   return (
     <div
@@ -45,7 +85,7 @@ export default function ParticipantTile({
       {hasVideo ? (
         <VideoTrack
           trackRef={trackRef}
-          className={`h-full w-full ${objectClass}`}
+          className={`h-full w-full ${objectClass} ${unMirrorLocal ? "-scale-x-100" : ""}`}
         />
       ) : (
         <div className="flex h-full w-full items-center justify-center">

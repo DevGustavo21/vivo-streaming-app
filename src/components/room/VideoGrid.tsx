@@ -8,7 +8,7 @@ import {
 } from "@livekit/components-react";
 import { Track } from "livekit-client";
 import ParticipantTile from "./ParticipantTile";
-import type { VideoFitMode } from "@/lib/video-display";
+import type { LocalMirrorMode, VideoFitMode } from "@/lib/video-display";
 
 const PAGE_SIZE = 12;
 
@@ -23,9 +23,11 @@ const PAGE_SIZE = 12;
 export default function VideoGrid({
   spotlightIdentity = null,
   videoFit = "cover",
+  localMirrorMode = "natural",
 }: {
   spotlightIdentity?: string | null;
   videoFit?: VideoFitMode;
+  localMirrorMode?: LocalMirrorMode;
 }) {
   const tracks = useTracks(
     [
@@ -52,12 +54,14 @@ export default function VideoGrid({
     return (
       <div className="flex h-full flex-col gap-2">
         <div className="min-h-0 flex-1 overflow-hidden rounded-xl bg-black">
-          <ParticipantTile trackRef={screenShare} isScreenShare videoFit={videoFit} />
+          <ParticipantTile trackRef={screenShare} isScreenShare videoFit={videoFit}
+            localMirrorMode={localMirrorMode} />
         </div>
         <div className="flex h-24 gap-2 overflow-x-auto md:h-28">
           {cameras.map((t) => (
             <div key={keyOf(t)} className="aspect-video h-full shrink-0">
-              <ParticipantTile trackRef={t} compact videoFit={videoFit} />
+              <ParticipantTile trackRef={t} compact videoFit={videoFit}
+            localMirrorMode={localMirrorMode} />
             </div>
           ))}
         </div>
@@ -76,13 +80,15 @@ export default function VideoGrid({
     return (
       <div className="flex h-full flex-col gap-2">
         <div className="min-h-0 flex-1 overflow-hidden rounded-xl bg-black">
-          <ParticipantTile trackRef={spotlightTrack} videoFit={videoFit} />
+          <ParticipantTile trackRef={spotlightTrack} videoFit={videoFit}
+            localMirrorMode={localMirrorMode} />
         </div>
         {others.length > 0 && (
           <div className="flex h-24 gap-2 overflow-x-auto md:h-28">
             {others.map((t) => (
               <div key={keyOf(t)} className="aspect-video h-full shrink-0">
-                <ParticipantTile trackRef={t} compact videoFit={videoFit} />
+                <ParticipantTile trackRef={t} compact videoFit={videoFit}
+            localMirrorMode={localMirrorMode} />
               </div>
             ))}
           </div>
@@ -98,7 +104,8 @@ export default function VideoGrid({
         style={{ gridAutoRows: "minmax(0, 1fr)" }}
       >
         {visible.map((t) => (
-          <ParticipantTile key={keyOf(t)} trackRef={t} videoFit={videoFit} />
+          <ParticipantTile key={keyOf(t)} trackRef={t} videoFit={videoFit}
+            localMirrorMode={localMirrorMode} />
         ))}
       </div>
 

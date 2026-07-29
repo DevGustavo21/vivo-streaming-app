@@ -8,6 +8,7 @@ import { RoomEvent } from "livekit-client";
 import type { LucideIcon } from "lucide-react";
 import {
   Crop,
+  FlipHorizontal,
   Hand,
   Heart,
   Laugh,
@@ -16,6 +17,7 @@ import {
   Mic,
   MicOff,
   MonitorUp,
+  MoreHorizontal,
   PartyPopper,
   PhoneOff,
   Settings,
@@ -28,7 +30,7 @@ import {
   VideoOff,
 } from "lucide-react";
 import { canFlipCamera, flipLocalCamera, isMobileOrTablet } from "@/lib/camera";
-import type { VideoFitMode } from "@/lib/video-display";
+import type { LocalMirrorMode, VideoFitMode } from "@/lib/video-display";
 import { REACTION_EMOJIS, type LkMetadata, type ReactionKey } from "@/lib/types";
 import type { SidebarView } from "./RoomContent";
 
@@ -62,6 +64,8 @@ export default function ControlsBar({
   onFinalizeForAll,
   videoFit,
   onToggleVideoFit,
+  localMirrorMode,
+  onToggleLocalMirror,
 }: {
   isHost: boolean;
   sidebar: SidebarView;
@@ -74,6 +78,8 @@ export default function ControlsBar({
   onFinalizeForAll?: () => void;
   videoFit: VideoFitMode;
   onToggleVideoFit: () => void;
+  localMirrorMode: LocalMirrorMode;
+  onToggleLocalMirror: () => void;
 }) {
   const router = useRouter();
   const room = useRoomContext();
@@ -90,6 +96,12 @@ export default function ControlsBar({
   const [micAllowed, setMicAllowed] = useState(isHostUser);
   const [busy, setBusy] = useState<string | null>(null);
   const [showFlipCam, setShowFlipCam] = useState(false);
+  const [isMobileUi, setIsMobileUi] = useState(false);
+  const [showMore, setShowMore] = useState(false);
+
+  useEffect(() => {
+    setIsMobileUi(isMobileOrTablet());
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -181,29 +193,233 @@ export default function ControlsBar({
     router.replace("/");
   }
 
+  const reactionsPicker = showReactions && (
+    <div className="absolute bottom-full left-1/2 z-30 mb-2 flex max-w-[calc(100vw-1.5rem)] -translate-x-1/2 gap-0.5 rounded-2xl border border-zinc-800 bg-zinc-900 p-1.5 shadow-xl md:gap-1 md:p-2">
+      {(Object.keys(REACTION_ICONS) as ReactionKey[]).map((key) => {
+        const Icon = REACTION_ICONS[key];
+        return (
+          <button
+            key={key}
+            type="button"
+            onClick={() => {
+              onReaction(key);
+              setShowReactions(false);
+            }}
+            className="rounded-xl p-2 text-zinc-300 hover:bg-zinc-800 transition-colors md:p-2.5"
+            aria-label={`Reaccionar: ${key}`}
+            title={REACTION_EMOJIS[key]}
+          >
+            <Icon className="h-5 w-5" />
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  const moreMenu = showMore && (
+    <>
+      <button
+        type="button"
+        className="fixed inset-0 z-40 bg-black/40 md:hidden"
+        aria-label="Cerrar menú"
+        onClick={() => setShowMore(false)}
+      />
+      <div className="absolute bottom-full right-2 z-50 mb-2 w-56 rounded-2xl border border-zinc-800 bg-zinc-900 py-1 shadow-xl md:hidden">
+        <MoreMenuItem
+          onClick={() => {
+            onToggleVideoFit();
+            setShowMore(false);
+          }}
+          active={videoFit === "cover"}
+          label={
+            videoFit === "cover" ? "Reencuadre al recuadro" : "Video completo (sin recorte)"
+          }
+          icon={Crop}
+        />
+        {isMobileUi && (
+          <MoreMenuItem
+            onClick={() => {
+              onToggleLocalMirror();
+              setShowMore(false);
+            }}
+            active={localMirrorMode === "selfie"}
+            label={localMirrorMode === "selfie" ? "Modo espejo" : "Vista sin espejo"}
+            icon={FlipHorizontal}
+          />
+        )}
+        {showFlipCam && (
+          <MoreMenuItem
+            onClick={() => {
+              void switchCamera();
+              setShowMore(false);
+            }}
+            disabled={busy === "flip" || !isCameraEnabled}
+            label="Cambiar cámara"
+            icon={SwitchCamera}
+          />
+        )}
+        {isHostUser && (
+          <>
+            <div className="my-1 h-px bg-zinc-800" />
+            <MoreMenuItem
+              onClick={() => {
+                onToggleSettings();
+                setShowMore(false);
+              }}
+              active={sidebar === "settings"}
+              label="Ajustes generales"
+              icon={Settings}
+            />
+            <MoreMenuItem
+              onClick={() => {
+                onTogglePanel();
+                setShowMore(false);
+              }}
+              active={sidebar === "panel"}
+              label="Participantes"
+              icon={Users}
+            />
+          </>
+        )}
+      </div>
+    </>
+  );
+
   return (
-    <div className="relative flex items-center justify-center gap-2 px-3 py-3 md:gap-3">
-      {showReactions && (
-        <div className="absolute bottom-full mb-2 flex gap-1 rounded-2xl border border-zinc-800 bg-zinc-900 p-2 shadow-xl">
-          {(Object.keys(REACTION_ICONS) as ReactionKey[]).map((key) => {
-            const Icon = REACTION_ICONS[key];
-            return (
-              <button
-                key={key}
+    <>
+      {/* ——— Móvil ——— */}
+      <div className="relative shrink-0 border-t border-zinc-800/80 bg-zinc-950 pb-[max(0.5rem,env(safe-area-inset-bottom))] md:hidden">
+        {reactionsPicker}
+        <div className="flex items-center gap-1 px-2 py-2">
+          <div className="flex min-w-0 flex-1 items-center justify-evenly gap-0.5">
+            <ControlButton
+              mobile
+              onClick={toggleMic}
+              active={isMicrophoneEnabled}
+              disabled={busy === "mic"}
+              locked={!micAllowed}
+              label={
+                !micAllowed
+                  ? "Micrófono bloqueado"
+                  : isMicrophoneEnabled
+                    ? "Silenciarme"
+                    : "Activar micrófono"
+              }
+            >
+              {!micAllowed ? (
+                <Lock className="h-[18px] w-[18px]" />
+              ) : isMicrophoneEnabled ? (
+                <Mic className="h-[18px] w-[18px]" />
+              ) : (
+                <MicOff className="h-[18px] w-[18px]" />
+              )}
+            </ControlButton>
+
+            <ControlButton
+              mobile
+              onClick={toggleCam}
+              active={isCameraEnabled}
+              disabled={busy === "cam"}
+              label={isCameraEnabled ? "Apagar cámara" : "Encender cámara"}
+            >
+              {isCameraEnabled ? (
+                <Video className="h-[18px] w-[18px]" />
+              ) : (
+                <VideoOff className="h-[18px] w-[18px]" />
+              )}
+            </ControlButton>
+
+            <ControlButton
+              mobile
+              onClick={() => {
+                setShowMore(false);
+                setShowReactions((s) => !s);
+              }}
+              active={showReactions}
+              label="Reaccionar"
+            >
+              <SmilePlus className="h-[18px] w-[18px]" />
+            </ControlButton>
+
+            <ControlButton
+              mobile
+              onClick={() => {
+                setShowMore(false);
+                onToggleChat();
+              }}
+              active={sidebar === "chat"}
+              label="Chat"
+              badge={unreadChat}
+            >
+              <MessageSquare className="h-[18px] w-[18px]" />
+            </ControlButton>
+
+            <div className="relative">
+              {moreMenu}
+              <ControlButton
+                mobile
                 onClick={() => {
-                  onReaction(key);
                   setShowReactions(false);
+                  setShowMore((s) => !s);
                 }}
-                className="rounded-xl p-2.5 text-zinc-300 hover:bg-zinc-800 transition-colors"
-                aria-label={`Reaccionar: ${key}`}
-                title={REACTION_EMOJIS[key]}
+                active={showMore}
+                label="Más opciones"
               >
-                <Icon className="h-5 w-5" />
+                <MoreHorizontal className="h-[18px] w-[18px]" />
+              </ControlButton>
+            </div>
+          </div>
+
+          {isHostUser && onFinalizeForAll ? (
+            <button
+              type="button"
+              onClick={onFinalizeForAll}
+              title="Finalizar para todos"
+              aria-label="Finalizar para todos"
+              className="ml-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-600 text-white hover:bg-rose-500"
+            >
+              <PhoneOff className="h-[18px] w-[18px]" />
+            </button>
+          ) : (
+            !isHostUser && (
+              <button
+                type="button"
+                onClick={leave}
+                title="Salir"
+                aria-label="Salir de la llamada"
+                className="ml-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-zinc-600 text-zinc-300 hover:bg-zinc-800"
+              >
+                <PhoneOff className="h-[18px] w-[18px]" />
               </button>
-            );
-          })}
+            )
+          )}
         </div>
-      )}
+      </div>
+
+      {/* ——— Escritorio ——— */}
+      <div className="relative hidden shrink-0 flex-wrap items-center justify-center gap-2 px-3 py-3 md:flex md:gap-3">
+        {showReactions && (
+          <div className="absolute bottom-full mb-2 flex gap-1 rounded-2xl border border-zinc-800 bg-zinc-900 p-2 shadow-xl">
+            {(Object.keys(REACTION_ICONS) as ReactionKey[]).map((key) => {
+              const Icon = REACTION_ICONS[key];
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => {
+                    onReaction(key);
+                    setShowReactions(false);
+                  }}
+                  className="rounded-xl p-2.5 text-zinc-300 hover:bg-zinc-800 transition-colors"
+                  aria-label={`Reaccionar: ${key}`}
+                  title={REACTION_EMOJIS[key]}
+                >
+                  <Icon className="h-5 w-5" />
+                </button>
+              );
+            })}
+          </div>
+        )}
 
       <ControlButton
         onClick={toggleMic}
@@ -252,24 +468,11 @@ export default function ControlsBar({
         <Crop className="h-5 w-5" />
       </ControlButton>
 
-      {showFlipCam && (
-        <ControlButton
-          onClick={switchCamera}
-          active={false}
-          disabled={busy === "flip" || !isCameraEnabled}
-          label="Cambiar cámara (frontal / trasera)"
-          className="md:hidden"
-        >
-          <SwitchCamera className="h-5 w-5" />
-        </ControlButton>
-      )}
-
       <ControlButton
         onClick={toggleScreenShare}
         active={isScreenShareEnabled}
         disabled={busy === "screen"}
         label={isScreenShareEnabled ? "Dejar de compartir" : "Compartir pantalla"}
-        className="hidden md:flex"
       >
         <MonitorUp className="h-5 w-5" />
       </ControlButton>
@@ -328,7 +531,36 @@ export default function ControlsBar({
           Salir
         </button>
       )}
-    </div>
+      </div>
+    </>
+  );
+}
+
+function MoreMenuItem({
+  icon: Icon,
+  label,
+  onClick,
+  active,
+  disabled,
+}: {
+  icon: LucideIcon;
+  label: string;
+  onClick: () => void;
+  active?: boolean;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors disabled:opacity-50 ${
+        active ? "bg-zinc-800 text-white" : "text-zinc-300 hover:bg-zinc-800/80"
+      }`}
+    >
+      <Icon className="h-4 w-4 shrink-0 opacity-80" />
+      {label}
+    </button>
   );
 }
 
@@ -341,6 +573,7 @@ function ControlButton({
   label,
   badge,
   className = "",
+  mobile = false,
 }: {
   children: React.ReactNode;
   onClick: () => void;
@@ -350,14 +583,18 @@ function ControlButton({
   label: string;
   badge?: number;
   className?: string;
+  mobile?: boolean;
 }) {
+  const size = mobile
+    ? "h-10 w-10 shrink-0 rounded-full"
+    : "h-11 w-11 rounded-xl md:h-12 md:w-12";
   return (
     <button
       onClick={onClick}
       disabled={disabled}
       title={label}
       aria-label={label}
-      className={`relative flex h-11 w-11 items-center justify-center rounded-xl transition-colors md:h-12 md:w-12 ${
+      className={`relative flex items-center justify-center transition-colors ${size} ${
         locked
           ? "bg-zinc-900 text-zinc-500 opacity-70"
           : active
