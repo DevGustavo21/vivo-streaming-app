@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useLocalParticipant, useRoomContext } from "@livekit/components-react";
 import { ConnectionState, RoomEvent } from "livekit-client";
-import { setPreferredCameraFacing, videoCaptureOptionsForViewport } from "@/lib/camera";
+import { publishLocalCamera, resetCameraSessionState, setPreferredCameraFacing } from "@/lib/camera";
 
 /** Aplica preferencias del lobby tras conectar, sin bloquear la sala si falla el dispositivo. */
 export default function PrejoinMediaSync({ inviteCode }: { inviteCode: string }) {
@@ -30,13 +30,12 @@ export default function PrejoinMediaSync({ inviteCode }: { inviteCode: string })
     }
 
     appliedRef.current = true;
+    resetCameraSessionState();
     setPreferredCameraFacing("user");
-    void localParticipant
-      .setCameraEnabled(true, videoCaptureOptionsForViewport("user"))
-      .catch(() => {
+    void publishLocalCamera(localParticipant, room, "user").catch(() => {
       // El usuario puede activar la cámara manualmente desde los controles.
     });
-  }, [room.state, localParticipant, inviteCode]);
+  }, [room.state, localParticipant, inviteCode, room]);
 
   useEffect(() => {
     function onConnected() {

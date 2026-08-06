@@ -10,9 +10,10 @@ import {
   type LocalVideoTrack,
 } from "livekit-client";
 import {
+  buildCameraCaptureOptions,
   getPreferredCameraFacing,
   isCameraSwitchCooldown,
-  videoCaptureOptionsForViewport,
+  isMobileOrTablet,
   viewportOrientation,
 } from "@/lib/camera";
 
@@ -20,7 +21,10 @@ function isLocalVideoTrack(track: unknown): track is LocalVideoTrack {
   return isLocalTrack(track as LocalVideoTrack) && isVideoTrack(track as LocalVideoTrack);
 }
 
-/** Reinicia la captura al rotar para que el stream enviado coincida con la orientación real. */
+/**
+ * Solo escritorio: en móvil el SO gestiona la rotación del sensor; reiniciar
+ * la pista con resoluciones fijas deforma la cámara trasera.
+ */
 export default function CameraOrientationSync() {
   const room = useRoomContext();
   const { localParticipant, isCameraEnabled } = useLocalParticipant();
@@ -28,13 +32,13 @@ export default function CameraOrientationSync() {
   const lastOrientationRef = useRef<"portrait" | "landscape" | null>(null);
 
   useEffect(() => {
+    if (isMobileOrTablet()) return;
     if (room.state !== ConnectionState.Connected || !isCameraEnabled) {
       lastOrientationRef.current = null;
       return;
     }
 
     let debounce: ReturnType<typeof setTimeout> | undefined;
-    let orientMedia: MediaQueryList | null = null;
 
     async function syncCapture() {
       if (busyRef.current || isCameraSwitchCooldown()) return;
@@ -45,14 +49,14 @@ export default function CameraOrientationSync() {
       const track = pub?.track;
       if (!track || !isLocalVideoTrack(track)) return;
 
-      const facingMode = getPreferredCameraFacing();
-
       busyRef.current = true;
       try {
-        await track.restartTrack(videoCaptureOptionsForViewport(facingMode));
+        await track.restartTrack(
+          buildCameraCaptureOptions(getPreferredCameraFacing())
+        );
         lastOrientationRef.current = orientation;
       } catch {
-        // Reintentar en el siguiente evento de orientación
+        // Ignorar: el usuario puede reintentar rotando de nuevo
       } finally {
         busyRef.current = false;
       }
@@ -62,24 +66,14 @@ export default function CameraOrientationSync() {
       if (debounce) clearTimeout(debounce);
       debounce = setTimeout(() => {
         void syncCapture();
-      }, 450);
+      }, 500);
     }
 
     schedule();
-    window.addEventListener("orientationchange", schedule);
     window.addEventListener("resize", schedule);
-    screen.orientation?.addEventListener("change", schedule);
-    if (typeof window.matchMedia === "function") {
-      orientMedia = window.matchMedia("(orientation: landscape)");
-      orientMedia.addEventListener("change", schedule);
-    }
-
     return () => {
       if (debounce) clearTimeout(debounce);
-      window.removeEventListener("orientationchange", schedule);
       window.removeEventListener("resize", schedule);
-      screen.orientation?.removeEventListener("change", schedule);
-      orientMedia?.removeEventListener("change", schedule);
     };
   }, [room.state, localParticipant, isCameraEnabled]);
 

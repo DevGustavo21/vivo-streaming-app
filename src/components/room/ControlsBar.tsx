@@ -30,11 +30,11 @@ import {
   VideoOff,
 } from "lucide-react";
 import {
-  effectiveLocalFacing,
   flipLocalCamera,
   isMobileOrTablet,
+  publishLocalCamera,
   setPreferredCameraFacing,
-  videoCaptureOptionsForViewport,
+  unpublishLocalCamera,
 } from "@/lib/camera";
 import type { LocalMirrorMode, VideoFitMode } from "@/lib/video-display";
 import { REACTION_EMOJIS, type LkMetadata, type ReactionKey } from "@/lib/types";
@@ -149,13 +149,10 @@ export default function ControlsBar({
     try {
       setBusy("cam");
       if (isCameraEnabled) {
-        await localParticipant.setCameraEnabled(false);
+        await unpublishLocalCamera(localParticipant);
       } else {
         setPreferredCameraFacing("user");
-        await localParticipant.setCameraEnabled(
-          true,
-          videoCaptureOptionsForViewport("user")
-        );
+        await publishLocalCamera(localParticipant, room, "user");
       }
     } catch {
       onNotify("No se pudo acceder a tu cámara. Revisa los permisos del navegador.");

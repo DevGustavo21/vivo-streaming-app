@@ -12,6 +12,7 @@ import { Mic, MicOff } from "lucide-react";
 import {
   effectiveLocalFacing,
   getPreferredCameraFacing,
+  isMobileOrTablet,
   localPreviewNeedsUnmirror,
   type CameraFacing,
 } from "@/lib/camera";
@@ -99,9 +100,12 @@ export default function ParticipantTile({
     };
   }, [trackRef, hasVideo]);
 
-  /** Con cámara, priorizar proporción real del stream para no estirar al rotar el móvil. */
-  const fitClass =
-    isScreenShare ? objectClass : videoAspect ? "object-contain" : objectClass;
+  /** En móvil siempre contain; en escritorio usar proporción del stream si está disponible. */
+  const fitClass = isScreenShare
+    ? objectClass
+    : isMobileOrTablet() || videoAspect
+      ? "object-contain"
+      : objectClass;
 
   const unMirrorLocal =
     isLocal &&
@@ -120,7 +124,9 @@ export default function ParticipantTile({
             key={layoutTick}
             trackRef={trackRef}
             style={
-              videoAspect && !isScreenShare ? { aspectRatio: videoAspect } : undefined
+              videoAspect && !isScreenShare && !isMobileOrTablet()
+                ? { aspectRatio: videoAspect }
+                : undefined
             }
             className={`max-h-full max-w-full ${fitClass} ${unMirrorLocal ? "-scale-x-100" : ""}`}
           />

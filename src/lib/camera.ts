@@ -1,5 +1,4 @@
 import {
-  facingModeFromLocalTrack,
   isLocalTrack,
   isVideoTrack,
   type LocalParticipant,
@@ -13,7 +12,6 @@ import type { LocalMirrorMode } from "@/lib/video-display";
 
 export type CameraFacing = NonNullable<VideoCaptureOptions["facingMode"]>;
 
-/** Restricciones por defecto: cámara frontal en móviles compatibles. */
 export const DEFAULT_VIDEO_CAPTURE: VideoCaptureOptions = {
   facingMode: "user",
 };
@@ -29,7 +27,12 @@ export function setPreferredCameraFacing(mode: CameraFacing): void {
   preferredFacingMode = mode;
 }
 
-export function markCameraSwitchCooldown(ms = 2500): void {
+export function resetCameraSessionState(): void {
+  preferredFacingMode = "user";
+  cameraSwitchCooldownUntil = 0;
+}
+
+export function markCameraSwitchCooldown(ms = 4000): void {
   cameraSwitchCooldownUntil = Date.now() + ms;
 }
 
@@ -47,35 +50,6 @@ export function viewportOrientation(): "portrait" | "landscape" {
   return isLandscapeViewport() ? "landscape" : "portrait";
 }
 
-/** Opciones de captura según orientación del dispositivo (evita video acostado/estirado). */
-export function videoCaptureOptionsForViewport(
-  facingMode?: CameraFacing
-): VideoCaptureOptions {
-  const landscape = isLandscapeViewport();
-  const facing = facingMode ?? preferredFacingMode;
-  const shared: VideoCaptureOptions = {
-    facingMode: facing,
-    frameRate: 30,
-  };
-
-  if (landscape) {
-    return {
-      ...shared,
-      resolution: VideoPresets.h720.resolution,
-    };
-  }
-
-  return {
-    ...shared,
-    resolution: {
-      width: 720,
-      height: 1280,
-      frameRate: 30,
-      aspectRatio: 9 / 16,
-    },
-  };
-}
-
 export function isMobileOrTablet(): boolean {
   if (typeof window === "undefined") return false;
   const touch = window.matchMedia("(pointer: coarse)").matches;
@@ -85,67 +59,98 @@ export function isMobileOrTablet(): boolean {
   return false;
 }
 
-function isLocalVideoTrack(track: unknown): track is LocalVideoTrack {
-  return isLocalTrack(track as LocalVideoTrack) && isVideoTrack(track as LocalVideoTrack);
+/**
+ * En móvil/tablet evitamos width/height fijos: el SO rota el sensor y forzar
+ * 720×1280 suele deformar la trasera y lo que reciben los demás.
+ */
+export function buildCameraCaptureOptions(facing?: CameraFacing): VideoCaptureOptions {
+  const facingMode = facing ?? preferredFacingMode;
+  if (isMobileOrTablet()) {
+    return { facingMode, frameRate: 30 };
+  }
+
+  const landscape = isLandscapeViewport();
+  if (landscape) {
+    return {
+      facingMode,
+      frameRate: 30,
+      resolution: VideoPresets.h720.resolution,
+    };
+  }
+
+  return {
+    facingMode,
+    frameRate: 30,
+    resolution: {
+      width: 720,
+      height: 1280,
+      frameRate: 30,
+      aspectRatio: 9 / 16,
+    },
+  };
 }
 
-async function findVideoInputDeviceId(
-  facing: CameraFacing
-): Promise<string | undefined> {
-  if (typeof navigator === "undefined" || !navigator.mediaDevices?.enumerateDevices) {
-    return undefined;
-  }
-  try {
-    const videos = (await navigator.mediaDevices.enumerateDevices()).filter(
-      (d) => d.kind === "videoinput"
-    );
-    if (videos.length < 2) return undefined;
+/** @deprecated use buildCameraCaptureOptions */
+export function videoCaptureOptionsForViewport(
+  facingMode?: CameraFacing
+): VideoCaptureOptions {
+  return buildCameraCaptureOptions(facingMode);
+}
 
-    const matches = (label: string, patterns: RegExp[]) =>
-      patterns.some((p) => p.test(label));
-
-    if (facing === "environment") {
-      const back = videos.find((d) =>
-        matches(d.label, [
-          /back/i,
-          /rear/i,
-          /environment/i,
-          /trasera/i,
-          /trase/i,
-          /world/i,
-          /wide/i,
-        ])
-      );
-      if (back?.deviceId) return back.deviceId;
-      if (isMobileOrTablet()) return videos[videos.length - 1]?.deviceId;
-    } else {
-      const front = videos.find((d) =>
-        matches(d.label, [/front/i, /user/i, /selfie/i, /facetime/i, /frontal/i])
-      );
-      if (front?.deviceId) return front.deviceId;
-      if (isMobileOrTablet()) return videos[0]?.deviceId;
-    }
-  } catch {
-    return undefined;
-  }
-  return undefined;
+function isLocalVideoTrack(track: unknown): track is LocalVideoTrack {
+  return isLocalTrack(track as LocalVideoTrack) && isVideoTrack(track as LocalVideoTrack);
 }
 
 function applyRoomVideoDefaults(room: Room | undefined, capture: VideoCaptureOptions) {
   if (!room?.options.videoCaptureDefaults) return;
   room.options.videoCaptureDefaults = {
+    resolution: VideoPresets.h720.resolution,
     ...room.options.videoCaptureDefaults,
-    ...capture,
+    facingMode: capture.facingMode,
+    frameRate: capture.frameRate,
+    deviceId: undefined,
   };
 }
 
+export async function unpublishLocalCamera(
+  localParticipant: LocalParticipant
+): Promise<void> {
+  const pub = localParticipant.getTrackPublication(Track.Source.Camera);
+  if (pub?.track) {
+    try {
+      await localParticipant.unpublishTrack(pub.track);
+    } catch {
+      // Ya despublicado
+    }
+  }
+  try {
+    await localParticipant.setCameraEnabled(false);
+  } catch {
+    // Sin cámara activa
+  }
+}
+
+/** Publica cámara con opciones coherentes (móvil: solo facingMode). */
+export async function publishLocalCamera(
+  localParticipant: LocalParticipant,
+  room?: Room,
+  facing?: CameraFacing
+): Promise<void> {
+  if (facing) setPreferredCameraFacing(facing);
+  const capture = buildCameraCaptureOptions(facing);
+  applyRoomVideoDefaults(room, capture);
+  await localParticipant.setCameraEnabled(true, capture);
+}
+
+/**
+ * Cambio frontal/trasera: despublicar y volver a publicar (fiable en iOS/Android).
+ */
 export async function flipLocalCamera(
   localParticipant: LocalParticipant,
   room?: Room
 ): Promise<CameraFacing> {
   const pub = localParticipant.getTrackPublication(Track.Source.Camera);
-  const track = pub?.track;
-  if (!track || !isLocalVideoTrack(track)) {
+  if (!pub?.track || !isLocalVideoTrack(pub.track)) {
     throw new Error("No hay cámara activa");
   }
 
@@ -154,25 +159,8 @@ export async function flipLocalCamera(
   setPreferredCameraFacing(next);
   markCameraSwitchCooldown();
 
-  const options = videoCaptureOptionsForViewport(next);
-  const deviceId = await findVideoInputDeviceId(next);
-  const capture: VideoCaptureOptions = {
-    ...options,
-    facingMode: next,
-    ...(deviceId ? { deviceId } : {}),
-  };
-
-  applyRoomVideoDefaults(room, capture);
-
-  if (deviceId && room) {
-    try {
-      await room.switchActiveDevice("videoinput", deviceId, true);
-    } catch {
-      // Seguir con restartTrack + facingMode
-    }
-  }
-
-  await track.restartTrack(capture);
+  await unpublishLocalCamera(localParticipant);
+  await publishLocalCamera(localParticipant, room, next);
   return next;
 }
 
@@ -180,7 +168,6 @@ export async function canFlipCamera(): Promise<boolean> {
   return true;
 }
 
-/** En móvil la cámara frontal suele verse en espejo; invertimos solo la vista local. */
 export function localPreviewNeedsUnmirror(
   facingMode: CameraFacing,
   mirrorMode: LocalMirrorMode
@@ -189,13 +176,6 @@ export function localPreviewNeedsUnmirror(
   return isMobileOrTablet() && facingMode === "user";
 }
 
-/** Facing efectivo para UI local (preferencia explícita del usuario). */
 export function effectiveLocalFacing(track?: LocalVideoTrack): CameraFacing {
-  if (track) {
-    const detected = facingModeFromLocalTrack(track, {
-      defaultFacingMode: preferredFacingMode,
-    }).facingMode;
-    if (detected === preferredFacingMode) return detected;
-  }
   return preferredFacingMode;
 }

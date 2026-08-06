@@ -10,6 +10,7 @@ import type { Session } from "@/lib/types";
 import RoomContent from "./RoomContent";
 import PrejoinMediaSync from "./PrejoinMediaSync";
 import CameraOrientationSync from "./CameraOrientationSync";
+import CameraSessionInit from "./CameraSessionInit";
 
 type Phase = "connecting" | "ready" | "denied" | "ended" | "error" | "disconnected";
 
@@ -64,7 +65,8 @@ export default function RoomShell({
         adaptiveStream: true,
         dynacast: true,
         videoCaptureDefaults: {
-          resolution: VideoPresets.h720.resolution,
+          facingMode: "user",
+          frameRate: 30,
         },
         publishDefaults: {
           simulcast: true,
@@ -307,6 +309,7 @@ export default function RoomShell({
       className="flex h-dvh flex-col bg-zinc-950"
     >
       <RoomAudioRenderer />
+      <CameraSessionInit inviteCode={session.invite_code} />
       <PrejoinMediaSync inviteCode={session.invite_code} />
       <CameraOrientationSync />
       <RoomContent
