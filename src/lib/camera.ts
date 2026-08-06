@@ -5,6 +5,7 @@ import {
   type LocalParticipant,
   type LocalVideoTrack,
   Track,
+  VideoPresets,
   type VideoCaptureOptions,
 } from "livekit-client";
 import type { LocalMirrorMode } from "@/lib/video-display";
@@ -15,6 +16,44 @@ export type CameraFacing = NonNullable<VideoCaptureOptions["facingMode"]>;
 export const DEFAULT_VIDEO_CAPTURE: VideoCaptureOptions = {
   facingMode: "user",
 };
+
+export function isLandscapeViewport(): boolean {
+  if (typeof window === "undefined") return true;
+  if (window.matchMedia("(orientation: landscape)").matches) return true;
+  return window.innerWidth > window.innerHeight;
+}
+
+export function viewportOrientation(): "portrait" | "landscape" {
+  return isLandscapeViewport() ? "landscape" : "portrait";
+}
+
+/** Opciones de captura según orientación del dispositivo (evita video acostado/estirado). */
+export function videoCaptureOptionsForViewport(
+  facingMode?: CameraFacing
+): VideoCaptureOptions {
+  const landscape = isLandscapeViewport();
+  const shared: VideoCaptureOptions = {
+    ...(facingMode ? { facingMode } : {}),
+    frameRate: 30,
+  };
+
+  if (landscape) {
+    return {
+      ...shared,
+      resolution: VideoPresets.h720.resolution,
+    };
+  }
+
+  return {
+    ...shared,
+    resolution: {
+      width: 720,
+      height: 1280,
+      frameRate: 30,
+      aspectRatio: 9 / 16,
+    },
+  };
+}
 
 export function isMobileOrTablet(): boolean {
   if (typeof window === "undefined") return false;
@@ -42,22 +81,22 @@ export async function flipLocalCamera(
     defaultFacingMode: "user",
   });
   const next: CameraFacing = current === "environment" ? "user" : "environment";
-  await track.restartTrack({ facingMode: next });
+  await track.restartTrack(videoCaptureOptionsForViewport(next));
   return next;
 }
 
 export async function canFlipCamera(): Promise<boolean> {
-  if (typeof navigator === "undefined" || !navigator.mediaDevices?.enumerateDevices) {
-    return isMobileOrTablet();
-  }
+  if (typeof navigator === "undefined") return true;
+  if (isMobileOrTablet()) return true;
+  if (!navigator.mediaDevices?.enumerateDevices) return true;
   try {
     const devices = await navigator.mediaDevices.enumerateDevices();
     const cameras = devices.filter((d) => d.kind === "videoinput");
     if (cameras.length >= 2) return true;
   } catch {
-    // Sin permiso aún: en móvil/tablet igualmente ofrecemos el botón.
+    // Tras conceder permiso de cámara, suele haber más de un dispositivo en móvil.
   }
-  return isMobileOrTablet();
+  return true;
 }
 
 /** En móvil la cámara frontal suele verse en espejo; invertimos solo la vista local. */

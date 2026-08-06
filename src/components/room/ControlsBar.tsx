@@ -29,7 +29,7 @@ import {
   Video,
   VideoOff,
 } from "lucide-react";
-import { canFlipCamera, flipLocalCamera, isMobileOrTablet } from "@/lib/camera";
+import { flipLocalCamera, isMobileOrTablet, videoCaptureOptionsForViewport } from "@/lib/camera";
 import type { LocalMirrorMode, VideoFitMode } from "@/lib/video-display";
 import { REACTION_EMOJIS, type LkMetadata, type ReactionKey } from "@/lib/types";
 import type { SidebarView } from "./RoomContent";
@@ -95,23 +95,11 @@ export default function ControlsBar({
   const [showReactions, setShowReactions] = useState(false);
   const [micAllowed, setMicAllowed] = useState(isHostUser);
   const [busy, setBusy] = useState<string | null>(null);
-  const [showFlipCam, setShowFlipCam] = useState(false);
   const [isMobileUi, setIsMobileUi] = useState(false);
   const [showMore, setShowMore] = useState(false);
 
   useEffect(() => {
     setIsMobileUi(isMobileOrTablet());
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const ok = (await canFlipCamera()) && isMobileOrTablet();
-      if (!cancelled) setShowFlipCam(ok);
-    })();
-    return () => {
-      cancelled = true;
-    };
   }, []);
 
   function computeMicAllowed(): boolean {
@@ -154,7 +142,14 @@ export default function ControlsBar({
   async function toggleCam() {
     try {
       setBusy("cam");
-      await localParticipant.setCameraEnabled(!isCameraEnabled);
+      if (isCameraEnabled) {
+        await localParticipant.setCameraEnabled(false);
+      } else {
+        await localParticipant.setCameraEnabled(
+          true,
+          videoCaptureOptionsForViewport("user")
+        );
+      }
     } catch {
       onNotify("No se pudo acceder a tu cámara. Revisa los permisos del navegador.");
     } finally {
@@ -247,17 +242,15 @@ export default function ControlsBar({
             icon={FlipHorizontal}
           />
         )}
-        {showFlipCam && (
-          <MoreMenuItem
-            onClick={() => {
-              void switchCamera();
-              setShowMore(false);
-            }}
-            disabled={busy === "flip" || !isCameraEnabled}
-            label="Cambiar cámara"
-            icon={SwitchCamera}
-          />
-        )}
+        <MoreMenuItem
+          onClick={() => {
+            void switchCamera();
+            setShowMore(false);
+          }}
+          disabled={busy === "flip" || !isCameraEnabled}
+          label="Cambiar cámara (frontal / trasera)"
+          icon={SwitchCamera}
+        />
         {isHostUser && (
           <>
             <div className="my-1 h-px bg-zinc-800" />
@@ -454,6 +447,15 @@ export default function ControlsBar({
         ) : (
           <VideoOff className="h-5 w-5" />
         )}
+      </ControlButton>
+
+      <ControlButton
+        onClick={() => void switchCamera()}
+        active={false}
+        disabled={busy === "flip" || !isCameraEnabled}
+        label="Cambiar cámara (frontal / trasera)"
+      >
+        <SwitchCamera className="h-5 w-5" />
       </ControlButton>
 
       <ControlButton

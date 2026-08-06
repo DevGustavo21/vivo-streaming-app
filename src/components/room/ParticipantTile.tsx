@@ -71,12 +71,27 @@ export default function ParticipantTile({
   const objectClass =
     isScreenShare || videoFit === "contain" ? "object-contain" : "object-cover";
 
+  const [videoAspect, setVideoAspect] = useState<number | null>(null);
   const [layoutTick, setLayoutTick] = useState(0);
+
+  function syncVideoAspect(track: import("livekit-client").Track) {
+    const settings = track.mediaStreamTrack.getSettings();
+    const w = settings.width;
+    const h = settings.height;
+    if (w && h && w > 0 && h > 0) {
+      setVideoAspect(w / h);
+    }
+  }
+
   useEffect(() => {
     if (!hasVideo || !isTrackReference(trackRef)) return;
     const track = trackRef.publication.track;
     if (!track || !isVideoTrack(track)) return;
-    const bump = () => setLayoutTick((n) => n + 1);
+    const bump = () => {
+      syncVideoAspect(track);
+      setLayoutTick((n) => n + 1);
+    };
+    bump();
     track.on(TrackEvent.VideoDimensionsChanged, bump);
     track.on(TrackEvent.Restarted, bump);
     return () => {
@@ -84,6 +99,10 @@ export default function ParticipantTile({
       track.off(TrackEvent.Restarted, bump);
     };
   }, [trackRef, hasVideo]);
+
+  /** Con cámara, priorizar proporción real del stream para no estirar al rotar el móvil. */
+  const fitClass =
+    isScreenShare ? objectClass : videoAspect ? "object-contain" : objectClass;
 
   const unMirrorLocal =
     isLocal &&
@@ -97,11 +116,16 @@ export default function ParticipantTile({
       }`}
     >
       {hasVideo ? (
-        <VideoTrack
-          key={layoutTick}
-          trackRef={trackRef}
-          className={`h-full w-full max-h-full max-w-full ${objectClass} ${unMirrorLocal ? "-scale-x-100" : ""}`}
-        />
+        <div className="flex h-full w-full items-center justify-center bg-zinc-950">
+          <VideoTrack
+            key={layoutTick}
+            trackRef={trackRef}
+            style={
+              videoAspect && !isScreenShare ? { aspectRatio: videoAspect } : undefined
+            }
+            className={`max-h-full max-w-full ${fitClass} ${unMirrorLocal ? "-scale-x-100" : ""}`}
+          />
+        </div>
       ) : (
         <div className="flex h-full w-full items-center justify-center">
           {metadata.avatarUrl ? (

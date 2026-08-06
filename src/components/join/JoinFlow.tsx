@@ -12,9 +12,7 @@ import {
 import type { User } from "@supabase/supabase-js";
 import { SwitchCamera } from "lucide-react";
 import {
-  canFlipCamera,
   DEFAULT_VIDEO_CAPTURE,
-  isMobileOrTablet,
   localPreviewNeedsUnmirror,
   type CameraFacing,
 } from "@/lib/camera";
@@ -48,23 +46,11 @@ export default function JoinFlow({ session }: { session: Session }) {
   const [mediaAsked, setMediaAsked] = useState(false);
   const [mediaDenied, setMediaDenied] = useState(false);
   const [facingMode, setFacingMode] = useState<CameraFacing>("user");
-  const [canFlip, setCanFlip] = useState(false);
   const [localMirrorMode, setLocalMirrorMode] = useState(
     () => getLocalMirrorPreference()
   );
 
   const lobbyUnMirror = localPreviewNeedsUnmirror(facingMode, localMirrorMode);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const ok = (await canFlipCamera()) && isMobileOrTablet();
-      if (!cancelled) setCanFlip(ok);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -383,7 +369,7 @@ export default function JoinFlow({ session }: { session: Session }) {
                     >
                       {camOn ? "Apagar cámara" : "Encender cámara"}
                     </button>
-                    {canFlip && camOn && (
+                    {camOn && (
                       <button
                         type="button"
                         onClick={flipLobbyCamera}
