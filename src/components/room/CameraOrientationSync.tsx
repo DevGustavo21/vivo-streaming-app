@@ -4,13 +4,17 @@ import { useEffect, useRef } from "react";
 import { useLocalParticipant, useRoomContext } from "@livekit/components-react";
 import {
   ConnectionState,
-  facingModeFromLocalTrack,
   isLocalTrack,
   isVideoTrack,
   Track,
   type LocalVideoTrack,
 } from "livekit-client";
-import { videoCaptureOptionsForViewport, viewportOrientation } from "@/lib/camera";
+import {
+  getPreferredCameraFacing,
+  isCameraSwitchCooldown,
+  videoCaptureOptionsForViewport,
+  viewportOrientation,
+} from "@/lib/camera";
 
 function isLocalVideoTrack(track: unknown): track is LocalVideoTrack {
   return isLocalTrack(track as LocalVideoTrack) && isVideoTrack(track as LocalVideoTrack);
@@ -33,7 +37,7 @@ export default function CameraOrientationSync() {
     let orientMedia: MediaQueryList | null = null;
 
     async function syncCapture() {
-      if (busyRef.current) return;
+      if (busyRef.current || isCameraSwitchCooldown()) return;
       const orientation = viewportOrientation();
       if (lastOrientationRef.current === orientation) return;
 
@@ -41,9 +45,7 @@ export default function CameraOrientationSync() {
       const track = pub?.track;
       if (!track || !isLocalVideoTrack(track)) return;
 
-      const { facingMode } = facingModeFromLocalTrack(track, {
-        defaultFacingMode: "user",
-      });
+      const facingMode = getPreferredCameraFacing();
 
       busyRef.current = true;
       try {

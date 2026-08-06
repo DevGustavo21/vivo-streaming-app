@@ -7,14 +7,11 @@ import {
   VideoTrack,
   type TrackReferenceOrPlaceholder,
 } from "@livekit/components-react";
-import {
-  facingModeFromLocalTrack,
-  isLocalTrack,
-  isVideoTrack,
-  TrackEvent,
-} from "livekit-client";
+import { isLocalTrack, isVideoTrack, TrackEvent } from "livekit-client";
 import { Mic, MicOff } from "lucide-react";
 import {
+  effectiveLocalFacing,
+  getPreferredCameraFacing,
   localPreviewNeedsUnmirror,
   type CameraFacing,
 } from "@/lib/camera";
@@ -57,9 +54,11 @@ export default function ParticipantTile({
       return;
     }
     const sync = () => {
-      setFacingMode(
-        facingModeFromLocalTrack(track, { defaultFacingMode: "user" }).facingMode
-      );
+      if (!track || !isLocalTrack(track) || !isVideoTrack(track)) {
+        setFacingMode(getPreferredCameraFacing());
+        return;
+      }
+      setFacingMode(effectiveLocalFacing(track));
     };
     sync();
     track.on(TrackEvent.Restarted, sync);

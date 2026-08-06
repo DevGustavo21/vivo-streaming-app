@@ -29,7 +29,13 @@ import {
   Video,
   VideoOff,
 } from "lucide-react";
-import { flipLocalCamera, isMobileOrTablet, videoCaptureOptionsForViewport } from "@/lib/camera";
+import {
+  effectiveLocalFacing,
+  flipLocalCamera,
+  isMobileOrTablet,
+  setPreferredCameraFacing,
+  videoCaptureOptionsForViewport,
+} from "@/lib/camera";
 import type { LocalMirrorMode, VideoFitMode } from "@/lib/video-display";
 import { REACTION_EMOJIS, type LkMetadata, type ReactionKey } from "@/lib/types";
 import type { SidebarView } from "./RoomContent";
@@ -145,6 +151,7 @@ export default function ControlsBar({
       if (isCameraEnabled) {
         await localParticipant.setCameraEnabled(false);
       } else {
+        setPreferredCameraFacing("user");
         await localParticipant.setCameraEnabled(
           true,
           videoCaptureOptionsForViewport("user")
@@ -164,7 +171,7 @@ export default function ControlsBar({
     }
     try {
       setBusy("flip");
-      await flipLocalCamera(localParticipant);
+      await flipLocalCamera(localParticipant, room);
     } catch {
       onNotify("No se pudo cambiar de cámara en este dispositivo.");
     } finally {
