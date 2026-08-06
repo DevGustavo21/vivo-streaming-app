@@ -2,18 +2,13 @@
 
 import { useEffect, useRef } from "react";
 import { useLocalParticipant, useRoomContext } from "@livekit/components-react";
-import {
-  ConnectionState,
-  isLocalTrack,
-  isVideoTrack,
-  Track,
-  type LocalVideoTrack,
-} from "livekit-client";
+import { ConnectionState, isLocalTrack, isVideoTrack, Track, type LocalVideoTrack } from "livekit-client";
 import {
   buildCameraCaptureOptions,
   getPreferredCameraFacing,
   isCameraSwitchCooldown,
   isMobileOrTablet,
+  republishLocalCameraForViewport,
   viewportOrientation,
 } from "@/lib/camera";
 
@@ -22,8 +17,8 @@ function isLocalVideoTrack(track: unknown): track is LocalVideoTrack {
 }
 
 /**
- * Solo escritorio: en móvil el SO gestiona la rotación del sensor; reiniciar
- * la pista con resoluciones fijas deforma la cámara trasera.
+ * Al rotar el dispositivo, republica la cámara con resolución acorde para que
+ * quien ve la transmisión reciba horizontal/vertical correcto (no “acostado”).
  */
 export default function CameraOrientationSync() {
   const room = useRoomContext();
@@ -32,7 +27,6 @@ export default function CameraOrientationSync() {
   const lastOrientationRef = useRef<"portrait" | "landscape" | null>(null);
 
   useEffect(() => {
-    if (isMobileOrTablet()) return;
     if (room.state !== ConnectionState.Connected || !isCameraEnabled) {
       lastOrientationRef.current = null;
       return;
@@ -45,18 +39,22 @@ export default function CameraOrientationSync() {
       const orientation = viewportOrientation();
       if (lastOrientationRef.current === orientation) return;
 
-      const pub = localParticipant.getTrackPublication(Track.Source.Camera);
-      const track = pub?.track;
-      if (!track || !isLocalVideoTrack(track)) return;
-
       busyRef.current = true;
       try {
-        await track.restartTrack(
-          buildCameraCaptureOptions(getPreferredCameraFacing())
-        );
+        if (isMobileOrTablet()) {
+          await republishLocalCameraForViewport(localParticipant, room);
+        } else {
+          const pub = localParticipant.getTrackPublication(Track.Source.Camera);
+          const track = pub?.track;
+          if (track && isLocalVideoTrack(track)) {
+            await track.restartTrack(
+              buildCameraCaptureOptions(getPreferredCameraFacing())
+            );
+          }
+        }
         lastOrientationRef.current = orientation;
       } catch {
-        // Ignorar: el usuario puede reintentar rotando de nuevo
+        // El usuario puede volver a girar el dispositivo
       } finally {
         busyRef.current = false;
       }
@@ -66,16 +64,18 @@ export default function CameraOrientationSync() {
       if (debounce) clearTimeout(debounce);
       debounce = setTimeout(() => {
         void syncCapture();
-      }, 500);
+      }, 600);
     }
 
     schedule();
     window.addEventListener("resize", schedule);
+    window.addEventListener("orientationchange", schedule);
     return () => {
       if (debounce) clearTimeout(debounce);
       window.removeEventListener("resize", schedule);
+      window.removeEventListener("orientationchange", schedule);
     };
-  }, [room.state, localParticipant, isCameraEnabled]);
+  }, [room, room.state, localParticipant, isCameraEnabled]);
 
   return null;
 }

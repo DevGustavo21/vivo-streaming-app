@@ -70,6 +70,8 @@ export interface ReactionEvent {
 export interface LkMetadata {
   role: Role;
   avatarUrl: string | null;
+  /** Orientación del dispositivo al capturar; ayuda a corregir vídeo “acostado” en remoto. */
+  videoOrientation?: "portrait" | "landscape";
 }
 
 /** Sesión creada para empezar de inmediato (sin fecha futura programada). */

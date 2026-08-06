@@ -7,7 +7,7 @@ import {
   VideoTrack,
   type TrackReferenceOrPlaceholder,
 } from "@livekit/components-react";
-import { isLocalTrack, isVideoTrack, TrackEvent } from "livekit-client";
+import { isLocalTrack, isVideoTrack, ParticipantEvent, TrackEvent } from "livekit-client";
 import { Mic, MicOff } from "lucide-react";
 import {
   effectiveLocalFacing,
@@ -17,6 +17,7 @@ import {
   type CameraFacing,
 } from "@/lib/camera";
 import type { LocalMirrorMode } from "@/lib/video-display";
+import { remoteVideoRotationCorrection } from "@/lib/video-orientation";
 import { initialsOf, type LkMetadata } from "@/lib/types";
 
 export default function ParticipantTile({
@@ -68,44 +69,41 @@ export default function ParticipantTile({
     };
   }, [trackRef, isLocal, isScreenShare]);
 
-  const objectClass =
-    isScreenShare || videoFit === "contain" ? "object-contain" : "object-cover";
-
-  const [videoAspect, setVideoAspect] = useState<number | null>(null);
-  const [layoutTick, setLayoutTick] = useState(0);
-
-  function syncVideoAspect(track: import("livekit-client").Track) {
-    const settings = track.mediaStreamTrack.getSettings();
-    const w = settings.width;
-    const h = settings.height;
-    if (w && h && w > 0 && h > 0) {
-      setVideoAspect(w / h);
-    }
-  }
+  const [remoteRotateDeg, setRemoteRotateDeg] = useState(0);
 
   useEffect(() => {
-    if (!hasVideo || !isTrackReference(trackRef)) return;
+    if (isLocal || isScreenShare || !hasVideo || !isTrackReference(trackRef)) return;
     const track = trackRef.publication.track;
     if (!track || !isVideoTrack(track)) return;
-    const bump = () => {
-      syncVideoAspect(track);
-      setLayoutTick((n) => n + 1);
-    };
-    bump();
-    track.on(TrackEvent.VideoDimensionsChanged, bump);
-    track.on(TrackEvent.Restarted, bump);
-    return () => {
-      track.off(TrackEvent.VideoDimensionsChanged, bump);
-      track.off(TrackEvent.Restarted, bump);
-    };
-  }, [trackRef, hasVideo]);
 
-  /** En móvil siempre contain; en escritorio usar proporción del stream si está disponible. */
+    const recompute = () => {
+      const pub = trackRef.publication;
+      const w = pub.dimensions?.width ?? 0;
+      const h = pub.dimensions?.height ?? 0;
+      const meta = parseMetadata(participant.metadata);
+      setRemoteRotateDeg(
+        remoteVideoRotationCorrection(meta.videoOrientation, w, h)
+      );
+    };
+
+    recompute();
+    track.on(TrackEvent.VideoDimensionsChanged, recompute);
+    participant.on(ParticipantEvent.ParticipantMetadataChanged, recompute);
+    return () => {
+      track.off(TrackEvent.VideoDimensionsChanged, recompute);
+      participant.off(ParticipantEvent.ParticipantMetadataChanged, recompute);
+    };
+  }, [trackRef, hasVideo, isLocal, isScreenShare, participant]);
+
   const fitClass = isScreenShare
-    ? objectClass
-    : isMobileOrTablet() || videoAspect
-      ? "object-contain"
-      : objectClass;
+    ? "object-contain"
+    : videoFit === "cover"
+      ? "object-cover"
+      : "object-contain";
+
+  /** En móvil, contain evita recortes raros al rotar; el vídeo debe llenar el tile (no max-*). */
+  const cameraFitClass =
+    isMobileOrTablet() && !isScreenShare ? "object-contain" : fitClass;
 
   const unMirrorLocal =
     isLocal &&
@@ -119,18 +117,20 @@ export default function ParticipantTile({
       }`}
     >
       {hasVideo ? (
-        <div className="flex h-full w-full items-center justify-center bg-zinc-950">
+        remoteRotateDeg !== 0 && !isLocal ? (
+          <div className="absolute inset-0 flex items-center justify-center overflow-hidden bg-zinc-950">
+            <VideoTrack
+              trackRef={trackRef}
+              className={`max-h-[145%] max-w-[145%] ${cameraFitClass}`}
+              style={{ transform: `rotate(${remoteRotateDeg}deg)` }}
+            />
+          </div>
+        ) : (
           <VideoTrack
-            key={layoutTick}
             trackRef={trackRef}
-            style={
-              videoAspect && !isScreenShare && !isMobileOrTablet()
-                ? { aspectRatio: videoAspect }
-                : undefined
-            }
-            className={`max-h-full max-w-full ${fitClass} ${unMirrorLocal ? "-scale-x-100" : ""}`}
+            className={`absolute inset-0 h-full w-full bg-zinc-950 ${cameraFitClass} ${unMirrorLocal ? "-scale-x-100" : ""}`}
           />
-        </div>
+        )
       ) : (
         <div className="flex h-full w-full items-center justify-center">
           {metadata.avatarUrl ? (

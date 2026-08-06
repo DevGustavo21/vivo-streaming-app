@@ -9,6 +9,7 @@ import {
   type VideoCaptureOptions,
 } from "livekit-client";
 import type { LocalMirrorMode } from "@/lib/video-display";
+import type { LkMetadata } from "@/lib/types";
 
 export type CameraFacing = NonNullable<VideoCaptureOptions["facingMode"]>;
 
@@ -60,13 +61,35 @@ export function isMobileOrTablet(): boolean {
 }
 
 /**
- * En móvil/tablet evitamos width/height fijos: el SO rota el sensor y forzar
- * 720×1280 suele deformar la trasera y lo que reciben los demás.
+ * En móvil la orientación debe ir en la captura: el preview local lo rota el SO,
+ * pero WebRTC puede enviar frames en vertical si no reiniciamos al girar.
  */
 export function buildCameraCaptureOptions(facing?: CameraFacing): VideoCaptureOptions {
   const facingMode = facing ?? preferredFacingMode;
   if (isMobileOrTablet()) {
-    return { facingMode, frameRate: 30 };
+    const landscape = isLandscapeViewport();
+    if (landscape) {
+      return {
+        facingMode,
+        frameRate: 30,
+        resolution: {
+          width: 1280,
+          height: 720,
+          frameRate: 30,
+          aspectRatio: 16 / 9,
+        },
+      };
+    }
+    return {
+      facingMode,
+      frameRate: 30,
+      resolution: {
+        width: 720,
+        height: 1280,
+        frameRate: 30,
+        aspectRatio: 9 / 16,
+      },
+    };
   }
 
   const landscape = isLandscapeViewport();
@@ -101,6 +124,38 @@ function isLocalVideoTrack(track: unknown): track is LocalVideoTrack {
   return isLocalTrack(track as LocalVideoTrack) && isVideoTrack(track as LocalVideoTrack);
 }
 
+function parseLocalMetadata(raw: string | undefined): LkMetadata {
+  try {
+    if (raw) return JSON.parse(raw) as LkMetadata;
+  } catch {
+    // metadata malformada
+  }
+  return { role: "guest", avatarUrl: null };
+}
+
+export async function syncLocalVideoOrientationMetadata(
+  localParticipant: LocalParticipant
+): Promise<void> {
+  const meta = parseLocalMetadata(localParticipant.metadata);
+  meta.videoOrientation = viewportOrientation();
+  await localParticipant.setMetadata(JSON.stringify(meta));
+}
+
+/** Tras girar el dispositivo: metadata + republicar para que remoto vea horizontal bien. */
+export async function republishLocalCameraForViewport(
+  localParticipant: LocalParticipant,
+  room?: Room
+): Promise<void> {
+  markCameraSwitchCooldown(2500);
+  if (!localParticipant.isCameraEnabled) {
+    await syncLocalVideoOrientationMetadata(localParticipant);
+    return;
+  }
+  const facing = getPreferredCameraFacing();
+  await unpublishLocalCamera(localParticipant);
+  await publishLocalCamera(localParticipant, room, facing);
+}
+
 function applyRoomVideoDefaults(room: Room | undefined, capture: VideoCaptureOptions) {
   if (!room?.options.videoCaptureDefaults) return;
   room.options.videoCaptureDefaults = {
@@ -130,7 +185,7 @@ export async function unpublishLocalCamera(
   }
 }
 
-/** Publica cámara con opciones coherentes (móvil: solo facingMode). */
+/** Publica cámara con opciones coherentes con la orientación del viewport. */
 export async function publishLocalCamera(
   localParticipant: LocalParticipant,
   room?: Room,
@@ -140,6 +195,7 @@ export async function publishLocalCamera(
   const capture = buildCameraCaptureOptions(facing);
   applyRoomVideoDefaults(room, capture);
   await localParticipant.setCameraEnabled(true, capture);
+  await syncLocalVideoOrientationMetadata(localParticipant);
 }
 
 /**

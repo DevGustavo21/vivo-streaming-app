@@ -53,13 +53,13 @@ export default function VideoGrid({
   if (screenShare) {
     return (
       <div className="flex h-full flex-col gap-2">
-        <div className="min-h-0 flex-1 overflow-hidden rounded-xl bg-black">
+        <div className="relative min-h-0 flex-1 overflow-hidden rounded-xl bg-black">
           <ParticipantTile trackRef={screenShare} isScreenShare videoFit={videoFit}
             localMirrorMode={localMirrorMode} />
         </div>
         <div className="flex h-24 gap-2 overflow-x-auto md:h-28">
           {cameras.map((t) => (
-            <div key={keyOf(t)} className="aspect-video h-full shrink-0">
+            <div key={keyOf(t)} className="aspect-video h-full min-w-[7rem] shrink-0">
               <ParticipantTile trackRef={t} compact videoFit={videoFit}
             localMirrorMode={localMirrorMode} />
             </div>
@@ -79,16 +79,23 @@ export default function VideoGrid({
     const others = cameras.filter((t) => t.participant.identity !== spotlightIdentity);
     return (
       <div className="flex h-full flex-col gap-2">
-        <div className="min-h-0 flex-1 overflow-hidden rounded-xl bg-black">
-          <ParticipantTile trackRef={spotlightTrack} videoFit={videoFit}
-            localMirrorMode={localMirrorMode} />
+        <div className="relative min-h-0 flex-1 overflow-hidden rounded-xl bg-black">
+          <ParticipantTile
+            trackRef={spotlightTrack}
+            videoFit={videoFit}
+            localMirrorMode={localMirrorMode}
+          />
         </div>
         {others.length > 0 && (
           <div className="flex h-24 gap-2 overflow-x-auto md:h-28">
             {others.map((t) => (
-              <div key={keyOf(t)} className="aspect-video h-full shrink-0">
-                <ParticipantTile trackRef={t} compact videoFit={videoFit}
-            localMirrorMode={localMirrorMode} />
+              <div key={keyOf(t)} className="aspect-video h-full min-w-[7rem] shrink-0">
+                <ParticipantTile
+                  trackRef={t}
+                  compact
+                  videoFit={videoFit}
+                  localMirrorMode={localMirrorMode}
+                />
               </div>
             ))}
           </div>
@@ -104,8 +111,13 @@ export default function VideoGrid({
         style={{ gridAutoRows: "minmax(0, 1fr)" }}
       >
         {visible.map((t) => (
-          <ParticipantTile key={keyOf(t)} trackRef={t} videoFit={videoFit}
-            localMirrorMode={localMirrorMode} />
+          <div key={keyOf(t)} className="min-h-0 min-w-0">
+            <ParticipantTile
+              trackRef={t}
+              videoFit={videoFit}
+              localMirrorMode={localMirrorMode}
+            />
+          </div>
         ))}
       </div>
 
