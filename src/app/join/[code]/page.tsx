@@ -1,6 +1,8 @@
 import { createAdminClient } from "@/lib/supabase/server";
 import JoinFlow from "@/components/join/JoinFlow";
 import Link from "next/link";
+import { resolveInviteCodeParam } from "@/lib/invite";
+import { redirect } from "next/navigation";
 import type { Session } from "@/lib/types";
 
 export default async function JoinPage({
@@ -8,7 +10,12 @@ export default async function JoinPage({
 }: {
   params: Promise<{ code: string }>;
 }) {
-  const { code } = await params;
+  const { code: rawCode } = await params;
+  const code = resolveInviteCodeParam(rawCode);
+
+  if (rawCode !== code) {
+    redirect(`/join/${code}`);
+  }
 
   // Lectura con service role: el invitado aún no está autenticado
   // y necesita ver el título del evento antes de entrar.

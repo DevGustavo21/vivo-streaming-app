@@ -9,6 +9,7 @@ import { isMediaDeviceError } from "@/lib/media-errors";
 import type { Session } from "@/lib/types";
 import RoomContent from "./RoomContent";
 import PrejoinMediaSync from "./PrejoinMediaSync";
+import CameraOrientationSync from "./CameraOrientationSync";
 
 type Phase = "connecting" | "ready" | "denied" | "ended" | "error" | "disconnected";
 
@@ -308,6 +309,7 @@ export default function RoomShell({
     >
       <RoomAudioRenderer />
       <PrejoinMediaSync inviteCode={session.invite_code} />
+      <CameraOrientationSync />
       <RoomContent
         session={session}
         userId={userId}

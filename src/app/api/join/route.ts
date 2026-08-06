@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { resolveInviteCodeParam } from "@/lib/invite";
 
 /**
  * Registra al usuario actual como participante de la sesión.
@@ -18,7 +19,7 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json().catch(() => null);
-  const code = typeof body?.code === "string" ? body.code : "";
+  const code = resolveInviteCodeParam(typeof body?.code === "string" ? body.code : "");
 
   const admin = createAdminClient();
 

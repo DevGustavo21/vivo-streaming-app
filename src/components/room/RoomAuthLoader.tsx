@@ -3,10 +3,12 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { resolveInviteCodeParam } from "@/lib/invite";
 
 /** Reintenta la sesión en el servidor antes de mandar al join (evita bucles SSR/cliente). */
 export default function RoomAuthLoader({ code }: { code: string }) {
   const router = useRouter();
+  const inviteCode = resolveInviteCodeParam(code);
 
   useEffect(() => {
     const supabase = createClient();
@@ -14,10 +16,10 @@ export default function RoomAuthLoader({ code }: { code: string }) {
       if (data.user) {
         router.refresh();
       } else {
-        router.replace(`/join/${code}`);
+        router.replace(`/join/${inviteCode}`);
       }
     });
-  }, [code, router]);
+  }, [inviteCode, router]);
 
   return (
     <main className="flex h-dvh flex-col items-center justify-center gap-4 px-6 text-center">

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { isLiveKitConfigured, liveKitConfigError } from "@/lib/livekit-config";
 import { createRoomToken } from "@/lib/livekit";
+import { resolveInviteCodeParam } from "@/lib/invite";
 
 /**
  * Emite el token de LiveKit para entrar a la sala.
@@ -24,7 +25,7 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json().catch(() => null);
-  const code = typeof body?.code === "string" ? body.code : "";
+  const code = resolveInviteCodeParam(typeof body?.code === "string" ? body.code : "");
 
   const admin = createAdminClient();
 

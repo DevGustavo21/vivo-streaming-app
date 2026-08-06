@@ -1,5 +1,6 @@
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { resolveInviteCodeParam } from "@/lib/invite";
 import RoomAuthLoader from "@/components/room/RoomAuthLoader";
 import RoomShell from "@/components/room/RoomShell";
 import type { Session } from "@/lib/types";
@@ -9,7 +10,12 @@ export default async function RoomPage({
 }: {
   params: Promise<{ code: string }>;
 }) {
-  const { code } = await params;
+  const { code: rawCode } = await params;
+  const code = resolveInviteCodeParam(rawCode);
+
+  if (rawCode !== code) {
+    redirect(`/room/${code}`);
+  }
 
   const supabase = await createClient();
   const {

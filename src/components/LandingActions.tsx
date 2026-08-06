@@ -80,7 +80,7 @@ export default function LandingActions({
         <input
           value={code}
           onChange={(e) => setCode(e.target.value)}
-          placeholder="Pega tu enlace o código (ej. abc-defgh-ijk)"
+          placeholder="Pega tu enlace o código (ej. abc-defg-hij)"
           className="flex-1 rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm placeholder:text-zinc-500 focus:border-rose-500 focus:outline-none"
         />
         <button

@@ -71,6 +71,20 @@ export default function ParticipantTile({
   const objectClass =
     isScreenShare || videoFit === "contain" ? "object-contain" : "object-cover";
 
+  const [layoutTick, setLayoutTick] = useState(0);
+  useEffect(() => {
+    if (!hasVideo || !isTrackReference(trackRef)) return;
+    const track = trackRef.publication.track;
+    if (!track || !isVideoTrack(track)) return;
+    const bump = () => setLayoutTick((n) => n + 1);
+    track.on(TrackEvent.VideoDimensionsChanged, bump);
+    track.on(TrackEvent.Restarted, bump);
+    return () => {
+      track.off(TrackEvent.VideoDimensionsChanged, bump);
+      track.off(TrackEvent.Restarted, bump);
+    };
+  }, [trackRef, hasVideo]);
+
   const unMirrorLocal =
     isLocal &&
     !isScreenShare &&
@@ -84,8 +98,9 @@ export default function ParticipantTile({
     >
       {hasVideo ? (
         <VideoTrack
+          key={layoutTick}
           trackRef={trackRef}
-          className={`h-full w-full ${objectClass} ${unMirrorLocal ? "-scale-x-100" : ""}`}
+          className={`h-full w-full max-h-full max-w-full ${objectClass} ${unMirrorLocal ? "-scale-x-100" : ""}`}
         />
       ) : (
         <div className="flex h-full w-full items-center justify-center">
