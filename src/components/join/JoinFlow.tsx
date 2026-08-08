@@ -22,7 +22,7 @@ type Step = "loading" | "auth" | "lobby" | "waiting" | "rejected" | "full";
 
 /**
  * Flujo de ingreso del invitado:
- * 1. auth    — Google o modo invitado (solo nombre)
+ * 1. auth    — modo invitado: solo el nombre (sin Google, el link ya es la credencial)
  * 2. lobby   — preview de cámara/micrófono con permisos explícitos
  * 3. waiting — sala de espera si el host exige aprobación
  * → redirige a /room/{code} cuando está aprobado
@@ -94,15 +94,6 @@ export default function JoinFlow({ session }: { session: Session }) {
     };
   }, []);
 
-  async function signInWithGoogle() {
-    await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=/join/${session.invite_code}`,
-      },
-    });
-  }
-
   async function signInAsGuest(e: React.FormEvent) {
     e.preventDefault();
     const name = guestName.trim();
@@ -127,7 +118,7 @@ export default function JoinFlow({ session }: { session: Session }) {
       const { data: verify } = await supabase.auth.getUser();
       if (!verify.user) {
         setError(
-          "Tu navegador bloqueó la sesión. Prueba «Continuar con Google» o abre el enlace en una ventana normal."
+          "Tu navegador bloqueó la sesión. Abre el enlace en una ventana normal (sin modo incógnito) e inténtalo de nuevo."
         );
         return;
       }
@@ -290,17 +281,9 @@ export default function JoinFlow({ session }: { session: Session }) {
         {/* PASO 1: elegir identidad */}
         {step === "auth" && (
           <div className="mt-10 flex flex-col gap-4">
-            <button
-              onClick={signInWithGoogle}
-              className="rounded-xl bg-white px-6 py-3.5 font-semibold text-zinc-900 hover:bg-zinc-200 transition-colors"
-            >
-              Continuar con Google
-            </button>
-            <div className="flex items-center gap-3 text-xs text-zinc-500">
-              <div className="h-px flex-1 bg-zinc-800" />
-              o entra solo con tu nombre
-              <div className="h-px flex-1 bg-zinc-800" />
-            </div>
+            <p className="text-center text-sm text-zinc-400">
+              Escribe tu nombre para entrar
+            </p>
             <form onSubmit={signInAsGuest} className="flex flex-col gap-3">
               <div className="flex gap-2">
                 <input
